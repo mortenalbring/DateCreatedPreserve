@@ -1,6 +1,6 @@
-$destinationRoot = "\\NAS\Backup"
-$inputCSV = "C:\BackupLogs\creation_dates.csv"
-$errorLog = "C:\BackupLogs\timestamp_restore_errors.log"
+$destinationRoot = "D:\Files\13-10 Coding Projects\PreserveDateCreated\TestDestinationFiles"
+$inputCSV = "D:\Files\13-10 Coding Projects\PreserveDateCreated\creation_dates.csv"
+$errorLog = "D:\Files\13-10 Coding Projects\PreserveDateCreated\timestamp_restore_errors.log"
 
 # Clear previous error log
 if (Test-Path $errorLog) { Remove-Item $errorLog }

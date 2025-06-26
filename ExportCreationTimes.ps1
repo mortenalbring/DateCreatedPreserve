@@ -1,5 +1,5 @@
-$sourcePath = "C:\Source"
-$outputCSV = "C:\BackupLogs\creation_dates.csv"
+$sourcePath = "D:\Files\13-10 Coding Projects\PreserveDateCreated\TestSourceFiles"
+$outputCSV = "D:\Files\13-10 Coding Projects\PreserveDateCreated\creation_dates.csv"
 
 Get-ChildItem -Path $sourcePath -Recurse -Force | ForEach-Object {
     [PSCustomObject]@{
