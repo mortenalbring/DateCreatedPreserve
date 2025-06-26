@@ -6,13 +6,13 @@ $errorLog = Join-Path $source "timestamp_restore_errors.log"
 # Clear previous error log
 if (Test-Path $errorLog) { Remove-Item $errorLog }
 
-# === STEP 1: COPY FILES AND PRESERVE TIMESTAMPS ===
+# === STEP 1: COPY FILES AND PRESERVE CREATION TIME ===
 $files = Get-ChildItem -Path $source -Recurse -File -Force
 $totalFiles = $files.Count
 $filesCopied = 0
 $startTime = Get-Date
 
-Write-Host "`n=== Copying files with inline creation timestamp restoration (ETA by file count)... ===`n"
+Write-Host "`n=== Copying files with Copy-Item and restoring creation timestamps... ===`n"
 
 foreach ($file in $files) {
     $relativePath = $file.FullName.Substring($source.Length).TrimStart('\')
@@ -23,31 +23,23 @@ foreach ($file in $files) {
         New-Item -ItemType Directory -Path $destFolder -Force | Out-Null
     }
 
-    $originalCreationTime = $file.CreationTimeUtc
-
-    # Copy file using robocopy
-    robocopy (Split-Path $file.FullName) $destFolder $file.Name /NFL /NDL /NJH /NJS > $null
-
-    if (Test-Path $destPath) {
-        try {
-            (Get-Item -LiteralPath $destPath -Force).CreationTimeUtc = $originalCreationTime
-        } catch {
-            Add-Content -Path $errorLog -Value "Failed to set creation time on file: $destPath - $_"
-        }
-    } else {
-        Add-Content -Path $errorLog -Value "File missing after copy: $destPath"
+    try {
+        Copy-Item -LiteralPath $file.FullName -Destination $destPath -Force
+        (Get-Item -LiteralPath $destPath -Force).CreationTimeUtc = $file.CreationTimeUtc
+    } catch {
+        Add-Content -Path $errorLog -Value "Copy or timestamp error: $destPath - $_"
     }
 
+    # Progress tracking
     $filesCopied++
     $percent = [math]::Round(($filesCopied / $totalFiles) * 100, 2)
 
-    # ETA calculation by file count
     $elapsed = (Get-Date) - $startTime
     $avgTimePerFile = $elapsed.TotalSeconds / $filesCopied
     $remainingSeconds = ($totalFiles - $filesCopied) * $avgTimePerFile
-    $eta = [TimeSpan]::FromSeconds($remainingSeconds)
+    $timeRemaining = [TimeSpan]::FromSeconds($remainingSeconds)
 
-    Write-Host ("{0,6}% complete - {1} | ETA: {2}" -f $percent, $file.Name, $eta.ToString("hh\:mm\:ss"))
+    Write-Host ("{0,6}% complete | Time remaining: {1} | {2}" -f $percent, $timeRemaining.ToString("hh\:mm\:ss"), $file.Name)
 }
 
 # === STEP 2: RESTORE DIRECTORY CREATION TIMESTAMPS ===
