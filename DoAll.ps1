@@ -1,6 +1,6 @@
 ﻿# === CONFIGURATION ===
-$source = "D:\Files\13-10 Coding Projects\PreserveDateCreated\TestSourceFiles"
-$target = "D:\Files\13-10 Coding Projects\PreserveDateCreated\TestDestinationFiles"
+$source = "D:\Files"
+$target = "T:\10-19 Grace\13 Files"
 $errorLog = Join-Path $source "timestamp_restore_errors.log"
 
 # Clear previous error log
@@ -10,6 +10,7 @@ if (Test-Path $errorLog) { Remove-Item $errorLog }
 $files = Get-ChildItem -Path $source -Recurse -File -Force
 $totalSize = ($files | Measure-Object Length -Sum).Sum
 $bytesCopied = 0
+$startTime = Get-Date
 
 Write-Host "`n=== Copying files with inline creation timestamp restoration... ===`n"
 
@@ -18,7 +19,6 @@ foreach ($file in $files) {
     $destPath = Join-Path $target $relativePath
     $destFolder = Split-Path $destPath -Parent
 
-    # Ensure destination folder exists
     if (!(Test-Path $destFolder)) {
         New-Item -ItemType Directory -Path $destFolder -Force | Out-Null
     }
@@ -28,7 +28,6 @@ foreach ($file in $files) {
     # Copy file using robocopy
     robocopy (Split-Path $file.FullName) $destFolder $file.Name /NFL /NDL /NJH /NJS > $null
 
-    # Restore creation time if copied successfully
     if (Test-Path $destPath) {
         try {
             (Get-Item -LiteralPath $destPath -Force).CreationTimeUtc = $originalCreationTime
@@ -39,10 +38,20 @@ foreach ($file in $files) {
         Add-Content -Path $errorLog -Value "File missing after copy: $destPath"
     }
 
-    # Show progress
     $bytesCopied += $file.Length
     $percent = [math]::Round(($bytesCopied / $totalSize) * 100, 2)
-    Write-Host ("{0,6}% complete - {1}" -f $percent, $file.Name)
+
+    # ETA calculation
+    $elapsed = (Get-Date) - $startTime
+    if ($bytesCopied -gt 0) {
+        $rate = $bytesCopied / $elapsed.TotalSeconds
+        $remainingSeconds = ($totalSize - $bytesCopied) / $rate
+        $eta = [TimeSpan]::FromSeconds($remainingSeconds)
+    } else {
+        $eta = "Calculating..."
+    }
+
+    Write-Host ("{0,6}% complete - {1} | ETA: {2}" -f $percent, $file.Name, $eta.ToString("hh\:mm\:ss"))
 }
 
 # === STEP 2: RESTORE DIRECTORY CREATION TIMESTAMPS ===
