@@ -1,88 +1,74 @@
 ﻿# === CONFIGURATION ===
-$source = "D:\Files\13-10 Coding Projects\PreserveDateCreated\TestSourceFiles\"
-$target = "D:\Files\13-10 Coding Projects\PreserveDateCreated\TestDestinationFiles\"
-$outputCSV = Join-Path $source "creation_dates.csv"
+$source = "D:\Files\13-10 Coding Projects\PreserveDateCreated\TestSourceFiles"
+$target = "D:\Files\13-10 Coding Projects\PreserveDateCreated\TestDestinationFiles"
 $errorLog = Join-Path $source "timestamp_restore_errors.log"
 
-# === STEP 1: COPY FILES WITH PROGRESS ===
-$files = Get-ChildItem -Path $source -Recurse -File
+# Clear previous error log
+if (Test-Path $errorLog) { Remove-Item $errorLog }
+
+# === STEP 1: COPY FILES AND PRESERVE TIMESTAMPS ===
+$files = Get-ChildItem -Path $source -Recurse -File -Force
 $totalSize = ($files | Measure-Object Length -Sum).Sum
 $bytesCopied = 0
 
-Write-Host "`n=== Copying files with progress tracking... ===`n"
+Write-Host "`n=== Copying files with inline creation timestamp restoration... ===`n"
 
 foreach ($file in $files) {
-    $relPath = $file.FullName.Substring($source.Length).TrimStart('\')
-    $destPath = Join-Path $target $relPath
+    $relativePath = $file.FullName.Substring($source.Length).TrimStart('\')
+    $destPath = Join-Path $target $relativePath
+    $destFolder = Split-Path $destPath -Parent
 
     # Ensure destination folder exists
-    $destFolder = Split-Path $destPath -Parent
     if (!(Test-Path $destFolder)) {
         New-Item -ItemType Directory -Path $destFolder -Force | Out-Null
     }
 
-    # Use robocopy to copy the individual file
+    $originalCreationTime = $file.CreationTimeUtc
+
+    # Copy file using robocopy
     robocopy (Split-Path $file.FullName) $destFolder $file.Name /NFL /NDL /NJH /NJS > $null
 
+    # Restore creation time if copied successfully
+    if (Test-Path $destPath) {
+        try {
+            (Get-Item -LiteralPath $destPath -Force).CreationTimeUtc = $originalCreationTime
+        } catch {
+            Add-Content -Path $errorLog -Value "Failed to set creation time on file: $destPath - $_"
+        }
+    } else {
+        Add-Content -Path $errorLog -Value "File missing after copy: $destPath"
+    }
+
+    # Show progress
     $bytesCopied += $file.Length
     $percent = [math]::Round(($bytesCopied / $totalSize) * 100, 2)
     Write-Host ("{0,6}% complete - {1}" -f $percent, $file.Name)
 }
 
-# === STEP 2: EXPORT ORIGINAL CREATION TIMES ===
-Write-Host "`n=== Exporting original creation timestamps... ===`n"
-
-Get-ChildItem -Path $source -Recurse -Force | ForEach-Object {
-    [PSCustomObject]@{
-        FullPath     = $_.FullName
-        CreationTime = $_.CreationTimeUtc
-        IsDirectory  = $_.PSIsContainer
-    }
-} | Export-Csv -Path $outputCSV -NoTypeInformation -Encoding UTF8
-
-# === STEP 3: RESTORE CREATION TIMES ===
-Write-Host "`n=== Restoring creation timestamps... ===`n"
-
-# Clear old error log
-if (Test-Path $errorLog) { Remove-Item $errorLog }
-
-$timestampData = Import-Csv -Path $outputCSV
-
-foreach ($entry in $timestampData) {
-    try {
-        $relativePath = $entry.FullPath.Substring($source.Length).TrimStart('\')
-        $destPath = Join-Path $target $relativePath
-
-        if (Test-Path $destPath) {
-            $item = Get-Item -LiteralPath $destPath -Force
-            $item.CreationTimeUtc = [datetime]::Parse($entry.CreationTime)
-        } else {
-            Add-Content -Path $errorLog -Value "Missing: $destPath"
-        }
-    } catch {
-        Add-Content -Path $errorLog -Value "Error setting timestamp: $destPath - $_"
-    }
-}
-
-# === STEP 4: RESTORE DIRECTORY CREATION TIMES ===
+# === STEP 2: RESTORE DIRECTORY CREATION TIMESTAMPS ===
 Write-Host "`n=== Restoring directory creation timestamps... ===`n"
 
-$directories = $timestampData | Where-Object { $_.IsDirectory -eq 'True' }
+$directories = Get-ChildItem -Path $source -Recurse -Directory -Force
 
-foreach ($dirEntry in $directories) {
-    try {
-        $relativePath = $dirEntry.FullPath.Substring($source.Length).TrimStart('\')
-        $destDirPath = Join-Path $target $relativePath
+foreach ($dir in $directories) {
+    $relativePath = $dir.FullName.Substring($source.Length).TrimStart('\')
+    $destDirPath = Join-Path $target $relativePath
 
-        if (Test-Path $destDirPath) {
-            (Get-Item -LiteralPath $destDirPath -Force).CreationTimeUtc = [datetime]::Parse($dirEntry.CreationTime)
-        } else {
-            Add-Content -Path $errorLog -Value "Missing Directory: $destDirPath"
+    if (Test-Path $destDirPath) {
+        try {
+            (Get-Item -LiteralPath $destDirPath -Force).CreationTimeUtc = $dir.CreationTimeUtc
+        } catch {
+            Add-Content -Path $errorLog -Value "Failed to set creation time on directory: $destDirPath - $_"
         }
-    } catch {
-        Add-Content -Path $errorLog -Value "Error restoring dir timestamp: $destDirPath - $_"
+    } else {
+        Add-Content -Path $errorLog -Value "Directory missing after copy: $destDirPath"
     }
 }
 
 # === DONE ===
-Write-Host "`n✅ All done. If any errors occurred, check: $errorLog"
+Write-Host "`n✅ All done!"
+if (Test-Path $errorLog) {
+    Write-Host "⚠️ Errors were logged to: $errorLog"
+} else {
+    Write-Host "🎉 No errors encountered."
+}
