@@ -8,11 +8,11 @@ if (Test-Path $errorLog) { Remove-Item $errorLog }
 
 # === STEP 1: COPY FILES AND PRESERVE TIMESTAMPS ===
 $files = Get-ChildItem -Path $source -Recurse -File -Force
-$totalSize = ($files | Measure-Object Length -Sum).Sum
-$bytesCopied = 0
+$totalFiles = $files.Count
+$filesCopied = 0
 $startTime = Get-Date
 
-Write-Host "`n=== Copying files with inline creation timestamp restoration... ===`n"
+Write-Host "`n=== Copying files with inline creation timestamp restoration (ETA by file count)... ===`n"
 
 foreach ($file in $files) {
     $relativePath = $file.FullName.Substring($source.Length).TrimStart('\')
@@ -38,18 +38,14 @@ foreach ($file in $files) {
         Add-Content -Path $errorLog -Value "File missing after copy: $destPath"
     }
 
-    $bytesCopied += $file.Length
-    $percent = [math]::Round(($bytesCopied / $totalSize) * 100, 2)
+    $filesCopied++
+    $percent = [math]::Round(($filesCopied / $totalFiles) * 100, 2)
 
-    # ETA calculation
+    # ETA calculation by file count
     $elapsed = (Get-Date) - $startTime
-    if ($bytesCopied -gt 0) {
-        $rate = $bytesCopied / $elapsed.TotalSeconds
-        $remainingSeconds = ($totalSize - $bytesCopied) / $rate
-        $eta = [TimeSpan]::FromSeconds($remainingSeconds)
-    } else {
-        $eta = "Calculating..."
-    }
+    $avgTimePerFile = $elapsed.TotalSeconds / $filesCopied
+    $remainingSeconds = ($totalFiles - $filesCopied) * $avgTimePerFile
+    $eta = [TimeSpan]::FromSeconds($remainingSeconds)
 
     Write-Host ("{0,6}% complete - {1} | ETA: {2}" -f $percent, $file.Name, $eta.ToString("hh\:mm\:ss"))
 }
