@@ -19,6 +19,23 @@ foreach ($file in $files) {
     $destPath = Join-Path $target $relativePath
     $destFolder = Split-Path $destPath -Parent
 
+    if (Test-Path $destPath) {
+        $destItem = Get-Item -LiteralPath $destPath -Force
+        if ($destItem.Length -eq $file.Length -and $destItem.LastWriteTimeUtc -eq $file.LastWriteTimeUtc) {
+            # Skip the file (already exists, same size and last modified)
+            $filesCopied++
+            $percent = [math]::Round(($filesCopied / $totalFiles) * 100, 2)
+
+            $elapsed = (Get-Date) - $startTime
+            $avgTimePerFile = $elapsed.TotalSeconds / $filesCopied
+            $remainingSeconds = ($totalFiles - $filesCopied) * $avgTimePerFile
+            $timeRemaining = [TimeSpan]::FromSeconds($remainingSeconds)
+
+            Write-Host ("{0,6}% complete | Time remaining: {1} | Skipped: {2}" -f $percent, $timeRemaining.ToString("hh\:mm\:ss"), $file.Name)
+            continue
+        }
+    }
+
     if (!(Test-Path $destFolder)) {
         New-Item -ItemType Directory -Path $destFolder -Force | Out-Null
     }
