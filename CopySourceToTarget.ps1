@@ -83,7 +83,7 @@ foreach ($dir in $directories) {
         robocopy $dir.FullName $destDir /E /COPYALL /DCOPY:T /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /LOG:$tempLog > $null
 
         # Parse copied files from log
-        $copiedLines = Select-String -Path $tempLog -Pattern '^\s+New File|\s+Newer|\s+Extra File' | ForEach-Object { $_.Line.Trim() }
+        $copiedLines = Select-String -Path $tempLog -Pattern '^\s+(New File|Newer|Extra File)' | ForEach-Object { $_.Line.Trim() }
 
         foreach ($line in $copiedLines) {
             try {
@@ -140,6 +140,56 @@ foreach ($dir in $directories) {
 }
 
 Remove-Item $tempLog -ErrorAction SilentlyContinue
+
+# === Summary Breakdown by Extension ===
+
+# Helper to extract extension safely
+function Get-Ext($path) {
+    $ext = [System.IO.Path]::GetExtension($path)
+    if (-not $ext) { $ext = "" }
+    return $ext.ToLower()
+}
+
+
+# Get all source files by extension
+$allSourceFiles = Get-ChildItem -Path $Source -Recurse -File -Force
+$totalByExt = @{}
+foreach ($file in $allSourceFiles) {
+    $ext = Get-Ext $file.Name
+    if ($totalByExt.ContainsKey($ext)) {
+        $totalByExt[$ext] += 1
+    } else {
+        $totalByExt[$ext] = 1
+    }
+}
+
+# Get copied files by extension
+$copiedByExt = @{}
+if (Test-Path $copiedLog) {
+    Get-Content -Path $copiedLog | ForEach-Object {
+        $ext = Get-Ext $_
+        if ($copiedByExt.ContainsKey($ext)) {
+            $copiedByExt[$ext] += 1
+        } else {
+            $copiedByExt[$ext] = 1
+        }
+    }
+}
+
+# Output summary
+Write-Host "`n📂 Breakdown by extension:" -ForegroundColor Cyan
+$allExts = ($totalByExt.Keys + $copiedByExt.Keys) | Sort-Object -Unique
+foreach ($ext in $allExts) {
+    $copied = $copiedByExt[$ext] | ForEach-Object { $_ } # null-safe
+    $total = $totalByExt[$ext] | ForEach-Object { $_ }
+    $skipped = $total - $copied
+    $label = if ($ext -ne "") { $ext } else { "[no ext]" }
+
+    Write-Host " - $label`tCopied: $copied`tSkipped: $skipped" -ForegroundColor Gray
+}
+
+
+
 
 Write-Host "`n`n✅ Robocopy batch complete!" -ForegroundColor Green
 if (Test-Path $copiedLog) {
