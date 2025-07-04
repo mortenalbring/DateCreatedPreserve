@@ -6,6 +6,8 @@
     [string]$Target
 )
 
+Write-Host "`n`n Copying.." -ForegroundColor DarkGreen
+
 # === CONFIGURATION ===
 $errorLog = Join-Path $Source "robocopy_errors.log"
 $copiedLog = Join-Path $Source "robocopy_copied_files.log"

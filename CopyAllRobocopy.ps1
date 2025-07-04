@@ -72,6 +72,22 @@ foreach ($dir in $directories) {
             }
         }
 
+        # After copying files, sync folder creation times
+        $sourceFolders = Get-ChildItem -Path $dir.FullName -Directory -Recurse -Force
+        foreach ($sf in $sourceFolders) {
+            $relative = $sf.FullName.Substring($dir.FullName.Length).TrimStart('\')
+            $dfPath = Join-Path $destDir $relative
+
+            if (Test-Path $dfPath) {
+                try {
+                    $destFolder = Get-Item -LiteralPath $dfPath -Force
+                    $destFolder.CreationTimeUtc = $sf.CreationTimeUtc
+                } catch {
+                    Add-Content -Path $errorLog -Value "Failed to set creation time on folder: $dfPath - $($_.Exception.Message)"
+                }
+            }
+        }
+
         # Visual output
         $done++
         $elapsed = (Get-Date) - $startTime
