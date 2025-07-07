@@ -180,12 +180,14 @@ if (Test-Path $copiedLog) {
 Write-Host "`n📂 Breakdown by extension:" -ForegroundColor Cyan
 $allExts = ($totalByExt.Keys + $copiedByExt.Keys) | Sort-Object -Unique
 foreach ($ext in $allExts) {
-    $copied = $copiedByExt[$ext] | ForEach-Object { $_ } # null-safe
-    $total = $totalByExt[$ext] | ForEach-Object { $_ }
+    $copied = if ($copiedByExt.ContainsKey($ext)) { $copiedByExt[$ext] } else { 0 }
+    $total = if ($totalByExt.ContainsKey($ext)) { $totalByExt[$ext] } else { 0 }
     $skipped = $total - $copied
     $label = if ($ext -ne "") { $ext } else { "[no ext]" }
 
-    Write-Host " - $label`tCopied: $copied`tSkipped: $skipped" -ForegroundColor Gray
+    # Nicely aligned output
+    $line = "{0,-10} Copied: {1,6}    Skipped: {2,6}" -f $label, $copied, $skipped
+    Write-Host " - $line" -ForegroundColor Gray
 }
 
 
