@@ -70,19 +70,17 @@ function Show-ProgressBar {
 
 # === GET FOLDERS ===
 $directories = Get-ChildItem -Path $source -Directory -Recurse
-$directories += Get-Item -LiteralPath $Source
-
 $total = $directories.Count
 $startTime = Get-Date
 $done = 0
 
 foreach ($dir in $directories) {
-    $relPath = $dir.FullName.Substring($Source.TrimEnd('\').Length).TrimStart('\')
+    $relPath = $dir.FullName.Substring($source.Length).TrimStart('\')
     $destDir = Join-Path $target $relPath
 
     try {
         # Run robocopy and log output to temp log
-        robocopy $dir.FullName $destDir /E /COPY:DAT /DCOPY:T /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /LOG:$tempLog > $null
+        robocopy $dir.FullName $destDir /E /COPYALL /DCOPY:T /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /LOG:$tempLog > $null
 
         # Parse copied files from log
         $copiedLines = Select-String -Path $tempLog -Pattern '^\s+(New File|Newer|Extra File)' | ForEach-Object { $_.Line.Trim() }
@@ -140,7 +138,6 @@ foreach ($dir in $directories) {
         Write-Host "$($_.Exception.Message)"
     }
 }
-Write-Host "Removing temp log.."
 
 Remove-Item $tempLog -ErrorAction SilentlyContinue
 
@@ -153,7 +150,6 @@ function Get-Ext($path) {
     return $ext.ToLower()
 }
 
-Write-Host "Getting source files by extension.."
 
 # Get all source files by extension
 $allSourceFiles = Get-ChildItem -Path $Source -Recurse -File -Force
