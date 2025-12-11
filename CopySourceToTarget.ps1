@@ -80,7 +80,7 @@ foreach ($job in $jobs) {
         if (-not (Test-Path $destDir)) { New-Item -Path $destDir -ItemType Directory -Force | Out-Null }
 
         try {
-            robocopy $dir.FullName $destDir /E /COPYALL /DCOPY:T /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /LOG:$tempLog > $null
+            robocopy $dir.FullName $destDir /E /COPYALL /DCOPY:T /R:1 /W:1 /NDL /NJH /NJS /NP /LOG:$tempLog > $null
             $copiedLines = Select-String -Path $tempLog -Pattern '^\s+(New File|Newer|Extra File)' | ForEach-Object { $_.Line.Trim() }
 
             foreach ($line in $copiedLines) {
@@ -141,12 +141,11 @@ foreach ($job in $jobs) {
 
 # === Summary ===
 Write-Host "`n📂 Final Summary by Extension:" -ForegroundColor Cyan
-$allExts = ($totalByExt.Keys + $copiedByExt.Keys) | Sort-Object -Unique
+$allExts = $copiedByExt.Keys | Sort-Object -Unique
 foreach ($ext in $allExts) {
     $copied = $copiedByExt[$ext]
-    $total = $totalByExt[$ext]
-    $skipped = $total - $copied
     $label = if ($ext -ne "") { $ext } else { "[no ext]" }
-    $line = "{0,-10} Copied: {1,6}  Skipped: {2,6}" -f $label, $copied, $skipped
+    $line = "{0,-10} Copied: {1,6}" -f $label, $copied
     Write-Host " - $line" -ForegroundColor Gray
 }
+
